@@ -11,7 +11,7 @@ async function run() {
 
   // Upvote the target 50 times.
   for (let i = 0; i < 50; i++) {
-    // TODO: await upvote(target);
+    await upvote(target);
   }
 
   // Fetch the top 10 WITH metadata.
@@ -22,8 +22,14 @@ async function run() {
   const madeIt = top.some((p) => p.id === target);
   console.log(madeIt ? `\nPASS ✅  ${target} reached the top 10` : `\nFAIL ❌  ${target} is NOT in the top 10`);
 
-  redis.disconnect();
-  process.exit(madeIt ? 0 : 1);
+  if (!madeIt) {
+    throw new Error(`${target} did not reach the top 10`);
+  }
 }
 
-run();
+run()
+  .catch((error) => {
+    console.error("Leaderboard test failed:", error);
+    process.exitCode = 1;
+  })
+  .finally(() => redis.quit());
