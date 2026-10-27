@@ -12,15 +12,29 @@ import { redis } from "./leaderboard.js";
 async function seed() {
   await redis.del("trending:posts");
 
-  // TODO: build a pipeline and, for i = 1..100:
-  //   - HSET post:<i>:meta title "Post number <i>" author "@user<i>"
-  //   - ZADD trending:posts <random 0-49> post:<i>
-  //     (keep the range modest, e.g. Math.floor(Math.random() * 50),
-  //      so a post upvoted 50 times is guaranteed to climb into the top 10)
-  // Then: await pipeline.exec();
+  const pipeline = redis.pipeline();
+  for (let i = 1; i <= 100; i++) {
+    const id = "post:" + i;
+    const score = Math.floor(Math.random() * 50);
+    pipeline.hset(id + ":meta", "title", "Post number " + i, "author", "@user" + i);
+    pipeline.zadd("trending:posts", score, id);
+  }
+
+  const results = await pipeline.exec();
+  if (results === null) {
+    throw new Error("Redis seed pipeline did not return results");
+  }
+  const failedCommand = results.find(([error]) => error !== null);
+  if (failedCommand) {
+    throw failedCommand[0];
+  }
 
   console.log("Seeded 100 posts.");
-  redis.disconnect();
 }
 
-seed();
+seed()
+  .catch((error) => {
+    console.error("Failed to seed leaderboard:", error);
+    process.exitCode = 1;
+  })
+  .finally(() => redis.quit());
